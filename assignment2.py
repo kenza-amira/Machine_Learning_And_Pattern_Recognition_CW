@@ -130,6 +130,7 @@ print("RMSE for validation set with random initialization parameters: ", nn_erro
 print("RMSE for training set with q3 parameters: ", nn_error(question_3, X_train, y_train))
 print("RMSE for validation set with q3 parameters: ", nn_error(question_3, X_val, y_val))
 
+print("Fitting default random ...")
 default_random = fit_nn_gradopt(X_train, y_train, 30, 20)
 baseline_log = np.log(nn_error(default_random, X_val, y_val))
 
@@ -143,25 +144,29 @@ def get_ys(alphas):
     return np.array(yy)
 
 def acquisition(mu, cov, yy, alphas):
-    pi = np.asarray([])
+    pis = dict()
     for i in range(len(alphas)):
-        pi = np.append(pi, norm.cdf((mu[i]-np.max(yy))/np.sqrt(cov[i,i])))
-    return pi
+        pis[alphas[i]]= norm.cdf((mu[i]-np.max(yy))/np.sqrt(cov[i,i]))
+    return pis
 
 alphas = np.arange(0, 50, 0.02)
 train_alphas = np.random.choice(alphas,3, replace=False)
 test_alphas = np.delete(alphas, [round(i/0.02) for i in train_alphas])
+print("Getting y's")
 yy_gp = get_ys(train_alphas)
 
 for i in range(5):
+    print(i, " iteration")
     mu, cov = gp_post_par(test_alphas, train_alphas, yy_gp)
     pis = acquisition(mu, cov, yy_gp, test_alphas)
-    max_pi = np.amax(pis)
-    max_alpha = test_alphas[np.argmax(max_pi)]
+    max_pi = max(pis.values())
+    max_alpha = max(pis, key=pis.get)
     train_alphas = np.append(train_alphas, max_alpha)
     test_alphas = np.delete(test_alphas, np.where(test_alphas==max_alpha))
     yy_gp = np.append(yy_gp, baseline_log -np.log(train_nn_reg(X_val, y_val, max_alpha)))
 
+print("train alphas: ", train_alphas)
+print("yy_gp: ", yy_gp)
 max_alpha = train_alphas[np.argmax(yy_gp)]
 
 val_rmse = train_nn_reg(X_val, y_val, max_alpha)
